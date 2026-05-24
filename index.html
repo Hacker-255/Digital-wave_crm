@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digital Wave CRM</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="landing" id="landingPage">
+      <header class="landing-nav">
+        <div class="brand compact-brand">
+          <img src="assets/digital-wave-logo.png" alt="Digital Wave" />
+          <div>
+            <strong>Digital Wave</strong>
+            <span>CRM - Websites - Software</span>
+          </div>
+        </div>
+        <nav class="site-links" aria-label="Website navigation">
+          <a href="#landingPage">Home</a>
+          <a href="#landingPage">Services</a>
+          <a href="#landingPage">About</a>
+          <a href="#landingPage">Case Studies</a>
+          <a href="#landingPage">Contact</a>
+        </nav>
+        <button class="primary-button" data-focus-login type="button">Get Started</button>
+      </header>
+
+      <main class="landing-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Digital Wave CRM</p>
+          <h1>We build custom software solutions that power growth.</h1>
+          <p class="hero-text">
+            Web applications, dashboards, portals and CRM systems built to solve your challenges
+            and scale your business.
+          </p>
+          <div class="hero-actions">
+            <button class="primary-button" data-focus-login type="button">Our Services</button>
+            <button class="dark-button" data-focus-login type="button">View Case Studies</button>
+          </div>
+          <div class="login-card" aria-label="Login options">
+            <button class="oauth-button" data-login="Google" type="button">
+              <span class="oauth-icon google">G</span>
+              Continue with Google
+            </button>
+            <div class="auth-divider"><span>or</span></div>
+            <form class="auth-form" id="emailAuthForm">
+              <input id="emailInput" type="email" autocomplete="email" placeholder="Email address" required />
+              <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Password" minlength="6" required />
+              <div class="auth-actions">
+                <button class="primary-button" id="emailSignInButton" type="submit">Sign in</button>
+                <button class="ghost-button" id="emailCreateButton" type="button">Create account</button>
+              </div>
+            </form>
+            <form class="auth-form" id="phoneAuthForm">
+              <input id="phoneInput" type="tel" autocomplete="tel" placeholder="Phone number, e.g. +201001234567" />
+              <div class="auth-actions">
+                <button class="ghost-button" id="sendCodeButton" type="submit">Send code</button>
+              </div>
+              <div id="recaptchaContainer"></div>
+              <div class="phone-code hidden" id="phoneCodeBox">
+                <input id="smsCodeInput" inputmode="numeric" placeholder="SMS verification code" />
+                <button class="primary-button" id="verifyCodeButton" type="button">Verify number</button>
+              </div>
+            </form>
+            <p>Secure sign-in powered by Firebase Authentication.</p>
+          </div>
+        </div>
+
+        <div class="hero-product" aria-label="Digital Wave CRM preview">
+          <div class="product-window">
+            <div class="window-sidebar">
+              <img src="assets/digital-wave-logo.png" alt="" />
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="window-content">
+              <div class="window-metrics">
+                <span>$96,420</span>
+                <span>842 deals</span>
+                <span>24.6%</span>
+              </div>
+              <div class="chart-lines">
+                <i style="height: 38%"></i>
+                <i style="height: 58%"></i>
+                <i style="height: 47%"></i>
+                <i style="height: 76%"></i>
+                <i style="height: 64%"></i>
+                <i style="height: 86%"></i>
+                <i style="height: 72%"></i>
+              </div>
+              <div class="mini-table">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+          <img class="device-reference" src="assets/digital-wave-device.jpeg" alt="" />
+          <img class="phone-reference" src="assets/digital-wave-dashboard.jpeg" alt="" />
+        </div>
+      </main>
+    </section>
+
+    <div class="app-shell hidden" id="crmApp">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand">
+          <img src="assets/digital-wave-logo.png" alt="Digital Wave" />
+          <div>
+            <strong>Digital Wave</strong>
+            <span id="signedInAs">CRM Workspace</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <p class="nav-section">Favorites</p>
+          <button class="nav-item active" data-view="dashboard" type="button" title="Dashboard">
+            <span class="icon" aria-hidden="true">D</span>
+            Dashboard
+          </button>
+          <p class="nav-section">Objects</p>
+          <button class="nav-item" data-view="leads" type="button" title="Leads">
+            <span class="icon" aria-hidden="true">L</span>
+            Leads
+          </button>
+          <button class="nav-item" data-view="people" type="button" title="People">
+            <span class="icon" aria-hidden="true">P</span>
+            People
+          </button>
+          <button class="nav-item" data-view="companies" type="button" title="Companies">
+            <span class="icon" aria-hidden="true">C</span>
+            Companies
+          </button>
+          <button class="nav-item" data-view="deals" type="button" title="Deals">
+            <span class="icon" aria-hidden="true">$</span>
+            Opportunities
+          </button>
+          <button class="nav-item" data-view="tasks" type="button" title="Tasks">
+            <span class="icon" aria-hidden="true">T</span>
+            Tasks
+          </button>
+          <button class="nav-item" data-view="activities" type="button" title="Activities">
+            <span class="icon" aria-hidden="true">A</span>
+            Activities
+          </button>
+          <p class="nav-section">Workspace</p>
+          <button class="nav-item" data-view="calendar" type="button" title="Calendar">
+            <span class="icon" aria-hidden="true">M</span>
+            Calendar
+          </button>
+          <button class="nav-item" data-view="inbox" type="button" title="Inbox">
+            <span class="icon" aria-hidden="true">@</span>
+            Inbox
+          </button>
+          <button class="nav-item" data-view="notes" type="button" title="Notes">
+            <span class="icon" aria-hidden="true">N</span>
+            Notes
+          </button>
+          <button class="nav-item" data-view="workflows" type="button" title="Workflows">
+            <span class="icon" aria-hidden="true">W</span>
+            Workflows
+          </button>
+          <button class="nav-item" data-view="reports" type="button" title="Reports">
+            <span class="icon" aria-hidden="true">R</span>
+            Reports
+          </button>
+          <button class="nav-item" data-view="users" type="button" title="Users">
+            <span class="icon" aria-hidden="true">U</span>
+            Users
+          </button>
+          <button class="nav-item" data-view="settings" type="button" title="Settings">
+            <span class="icon" aria-hidden="true">S</span>
+            Settings
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <button class="mini-action" id="densityToggle" type="button" title="Toggle compact density">CM</button>
+          <button class="mini-action" id="logoutButton" type="button" title="Logout">OUT</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="view-title">
+            <p id="viewKicker">Sales OS</p>
+            <h1 id="pageTitle">Dashboard</h1>
+          </div>
+          <label class="search">
+            <span aria-hidden="true">/</span>
+            <input id="searchInput" type="search" placeholder="Search objects, activities, notes..." />
+          </label>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="commandButton" type="button">Command</button>
+            <button class="ghost-button" id="importButton" type="button">Import</button>
+            <button class="primary-button" id="newRecordButton" type="button">New Lead</button>
+          </div>
+        </header>
+
+        <section class="metrics" id="metrics" aria-label="Workspace metrics"></section>
+
+        <section class="content-grid">
+          <div class="module-panel">
+            <div class="panel-toolbar">
+              <div>
+                <h2 id="moduleTitle">Workspace overview</h2>
+                <p id="moduleSubtitle">Pipeline, tasks, accounts, and activity in one Digital Wave cockpit.</p>
+              </div>
+              <div class="segmented" id="modeTabs" role="tablist" aria-label="View mode">
+                <button class="active" type="button" data-mode="overview">Overview</button>
+                <button type="button" data-mode="table">Table</button>
+                <button type="button" data-mode="pipeline">Pipeline</button>
+              </div>
+            </div>
+            <div id="moduleContent" class="module-content"></div>
+          </div>
+
+          <aside class="record-panel" aria-label="Record details">
+            <div class="wave-mark">
+              <img src="assets/digital-wave-logo.png" alt="" />
+            </div>
+            <div class="detail-header">
+              <span id="detailStage">Qualified</span>
+              <h2 id="detailName">Nora Adel</h2>
+              <p id="detailCompany">Apex Retail Systems</p>
+            </div>
+
+            <div class="detail-tabs">
+              <button class="active" type="button" data-detail="activity">Activity</button>
+              <button type="button" data-detail="fields">Fields</button>
+              <button type="button" data-detail="notes">Notes</button>
+            </div>
+
+            <div id="detailBody"></div>
+            <button class="primary-button full" id="openRecordButton" type="button">Open Record</button>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="record-modal" id="recordModal">
+      <form method="dialog">
+        <div class="modal-header">
+          <h2 id="modalTitle">Create record</h2>
+          <button class="mini-action" value="cancel" type="submit">X</button>
+        </div>
+        <label>
+          Name
+          <input id="modalName" placeholder="Client or deal name" />
+        </label>
+        <label>
+          Company
+          <input id="modalCompany" placeholder="Company name" />
+        </label>
+        <label>
+          Value
+          <input id="modalValue" placeholder="$12,000" />
+        </label>
+        <menu>
+          <button class="ghost-button" value="cancel" type="submit">Cancel</button>
+          <button class="primary-button" id="saveRecordButton" value="default" type="button">Create</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog class="command-modal" id="commandModal">
+      <div class="command-box">
+        <input id="commandInput" placeholder="Type a command or search..." />
+        <div id="commandResults"></div>
+      </div>
+    </dialog>
+
+    <div class="toast hidden" id="toast"></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
