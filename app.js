@@ -1,0 +1,1152 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-analytics.js";
+import {
+  RecaptchaVerifier,
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  OAuthProvider,
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
+  signInWithPopup,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCFM205S8WQUWqJZDZIJqK5TzMv127P0jI",
+  authDomain: "digital-wave-team.firebaseapp.com",
+  projectId: "digital-wave-team",
+  storageBucket: "digital-wave-team.firebasestorage.app",
+  messagingSenderId: "14731493539",
+  appId: "1:14731493539:web:691457a4a97fa4e9a5ff16",
+  measurementId: "G-58WJRHGKB3",
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+const appleProvider = new OAuthProvider("apple.com");
+const urlParams = new URLSearchParams(window.location.search);
+const demoPreview = urlParams.get("demo") === "crm";
+const pendingInviteId = urlParams.get("invite");
+
+isAnalyticsSupported().catch(() => {});
+
+const crmState = {
+  signedInProvider: "",
+  currentUser: null,
+  workspace: "personal",
+  theme: localStorage.getItem("digitalWaveCrmTheme") || "dark",
+  view: "companies",
+  mode: "table",
+  detailTab: "activity",
+  selectedId: "lead-1",
+  activeView: "all",
+  sortKey: "name",
+  sortDirection: "asc",
+};
+
+const defaultRecords = [];
+
+let records = cloneDefaultRecords();
+let confirmationResult = null;
+let recaptchaVerifier = null;
+
+const tasks = [
+  ["Send revised Digital Wave CRM proposal", "Nora Adel", "Today", false],
+  ["Prepare website wireframe review", "Pulse Fitness", "Tomorrow", false],
+  ["Invoice first milestone", "Delta Logistics", "Today", true],
+  ["Schedule technical discovery", "Orbit Academy", "Wed", false],
+  ["Connect WhatsApp lead source", "Blue Nile Clinics", "Thu", false],
+];
+
+const events = [
+  ["10:00", "Discovery call", "Orbit Academy"],
+  ["12:30", "CRM migration review", "Blue Nile Clinics"],
+  ["15:00", "Website scope workshop", "Pulse Fitness"],
+  ["17:00", "Dashboard kickoff", "Delta Logistics"],
+];
+
+const inbox = [
+  ["Nora Adel", "Can you include client portal permissions?", "10m"],
+  ["GitHub", "New issue assigned in Digital Wave CRM", "24m"],
+  ["Blue Nile Clinics", "Migration sample file attached", "1h"],
+  ["Google Ads", "Lead form generated 3 new prospects", "2h"],
+];
+
+const notes = [
+  ["Apex Retail Systems", "Needs inventory sync, role permissions, and Arabic/English UI."],
+  ["Digital Wave playbook", "Lead score over 80 gets proposal within 24 hours."],
+  ["Blue Nile Clinics", "Concerned about historical CRM data quality."],
+];
+
+const workflows = [
+  ["Website lead capture", "When form submitted, create lead and task", "Active"],
+  ["Proposal follow-up", "If proposal idle for 3 days, notify owner", "Active"],
+  ["Won deal handoff", "Create kickoff tasks and delivery workspace", "Paused"],
+];
+
+const savedViews = [
+  ["all", "All"],
+  ["mine", "My records"],
+  ["recent", "Recently updated"],
+  ["high", "High score"],
+  ["proposal", "Proposal"],
+];
+
+const commands = [
+  ["New lead", "Create a new lead", () => openCreateModal("New Lead")],
+  ["Import records", "Load demo records from a CSV-style import", () => importDemoRecords()],
+  ["Open people", "Go to People", () => setView("people")],
+  ["Open companies", "Go to Companies", () => setView("companies")],
+  ["Open opportunities", "Go to Opportunities", () => setView("deals")],
+  ["Open workflows", "Go to Workflows", () => setView("workflows")],
+  ["Open users", "Manage team users and workspace mode", () => setView("users")],
+  ["Toggle compact mode", "Change table density", () => document.body.classList.toggle("compact")],
+];
+
+const viewConfig = {
+  dashboard: ["▦", "Dashboards", "All Dashboards", "", "New Dashboard"],
+  leads: ["♙", "Leads", "All Leads", "", "New Lead"],
+  people: ["♙", "People", "All People", "", "New Person"],
+  companies: ["▥", "Companies", "All Companies", "", "New Company"],
+  deals: ["◎", "Opportunities", "All Opportunities", "", "New Opportunity"],
+  tasks: ["✓", "Tasks", "All Tasks", "", "New Task"],
+  activities: ["◌", "Workflow Runs", "All Workflow Runs", "", "New Run"],
+  calendar: ["▦", "Calendar", "All Events", "", "New Event"],
+  inbox: ["○", "Inbox", "All Messages", "", "New Message"],
+  notes: ["▤", "Notes", "All Notes", "", "New Note"],
+  workflows: ["⚙", "Workflows", "All Workflows", "", "New Workflow"],
+  reports: ["▥", "Workflow Versions", "All Workflow Versions", "", "New Version"],
+  users: ["◫", "Users", "All Users", "", "Add User"],
+  settings: ["⚙", "Settings", "All Settings", "", "Invite Member"],
+};
+
+const objectColumns = {
+  companies: [
+    ["name", "▥", "Name"],
+    ["domain", "↗", "Domain ..."],
+    ["createdBy", "◎", "Created by"],
+    ["owner", "☻", "Account Owner"],
+    ["createdAt", "▣", "Creation date"],
+    ["employees", "♙", "Employees"],
+    ["linkedin", "in", "Linkedin"],
+  ],
+  people: [
+    ["name", "♙", "Name"],
+    ["company", "▥", "Company"],
+    ["email", "@", "Email"],
+    ["owner", "☻", "Owner"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  deals: [
+    ["name", "◎", "Name"],
+    ["company", "▥", "Company"],
+    ["stage", "◎", "Stage"],
+    ["amount", "$", "Amount"],
+    ["owner", "☻", "Owner"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  tasks: [
+    ["name", "✓", "Title"],
+    ["status", "◎", "Status"],
+    ["owner", "☻", "Assignee"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  notes: [
+    ["name", "▤", "Title"],
+    ["company", "▥", "Related company"],
+    ["createdBy", "◎", "Created by"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  dashboard: [
+    ["name", "▦", "Name"],
+    ["createdBy", "◎", "Created by"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  workflows: [
+    ["name", "⚙", "Name"],
+    ["status", "◎", "Status"],
+    ["createdBy", "◎", "Created by"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  activities: [
+    ["name", "◌", "Name"],
+    ["status", "◎", "Status"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  reports: [
+    ["name", "▥", "Name"],
+    ["createdBy", "◎", "Created by"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  users: [
+    ["name", "◫", "Name"],
+    ["role", "◎", "Role"],
+    ["status", "◎", "Status"],
+    ["createdAt", "▣", "Creation date"],
+  ],
+  settings: [
+    ["name", "⚙", "Name"],
+    ["status", "◎", "Status"],
+  ],
+};
+
+const metricSets = {
+  dashboard: [["Total leads", "1,248", "+18.2%"], ["Open deals", "842", "+12.5%"], ["Revenue", "$96,420", "+24.7%"], ["Conversion", "24.6%", "+8.1%"]],
+  leads: [["New leads", "128", "+22"], ["Qualified", "64", "+14"], ["Avg score", "78", "+6"], ["Sources", "9", "+2"]],
+  deals: [["Pipeline", "$155.4k", "+18%"], ["Won", "$41.2k", "+1"], ["Avg deal", "$22.2k", "+7%"], ["Close rate", "31%", "+4%"]],
+  tasks: [["Due today", "12", "-3"], ["Overdue", "2", "-1"], ["Completed", "48", "+9"], ["Automation", "7", "+2"]],
+  reports: [["MRR influence", "$18.6k", "+11%"], ["Lead cost", "$21", "-8%"], ["Response SLA", "18m", "+5m"], ["Win rate", "31%", "+4%"]],
+};
+
+const landingPage = document.querySelector("#landingPage");
+const crmApp = document.querySelector("#crmApp");
+const signedInAs = document.querySelector("#signedInAs");
+const pageTitle = document.querySelector("#pageTitle");
+const viewKicker = document.querySelector("#viewKicker");
+const moduleTitle = document.querySelector("#moduleTitle");
+const moduleSubtitle = document.querySelector("#moduleSubtitle");
+const metrics = document.querySelector("#metrics");
+const moduleContent = document.querySelector("#moduleContent");
+const searchInput = document.querySelector("#searchInput");
+const modeTabs = document.querySelector("#modeTabs");
+const newRecordButton = document.querySelector("#newRecordButton");
+const recordModal = document.querySelector("#recordModal");
+const modalTitle = document.querySelector("#modalTitle");
+const commandModal = document.querySelector("#commandModal");
+const commandInput = document.querySelector("#commandInput");
+const commandResults = document.querySelector("#commandResults");
+const toast = document.querySelector("#toast");
+const themeToggle = document.querySelector("#themeToggle");
+const quickNewChatButton = document.querySelector("#quickNewChatButton");
+const loginCard = document.querySelector(".login-card");
+
+function saveRecords() {
+  localStorage.setItem(recordsKey(), JSON.stringify(records));
+}
+
+function recordsKey() {
+  const userKey = crmState.currentUser?.uid || "signed-out";
+  return crmState.workspace === "team" ? teamRecordsKey() : `digitalWaveRecords:v2:${userKey}`;
+}
+
+function teamRecordsKey() {
+  return "digitalWaveRecords:v2:team";
+}
+
+function cloneDefaultRecords() {
+  return JSON.parse(JSON.stringify(defaultRecords));
+}
+
+function loadRecordsForWorkspace() {
+  records = JSON.parse(localStorage.getItem(recordsKey()) || "null") || cloneDefaultRecords();
+}
+
+function teamKey() {
+  return "digitalWaveTeamUsers";
+}
+
+function inviteKey() {
+  return "digitalWaveTeamInvite";
+}
+
+function getTeamUsers() {
+  return JSON.parse(localStorage.getItem(teamKey()) || "null") || [];
+}
+
+function saveTeamUsers(users) {
+  localStorage.setItem(teamKey(), JSON.stringify(users));
+}
+
+function currentUserIdentity() {
+  const user = crmState.currentUser || {};
+  return user.email || user.displayName || user.phoneNumber || "Digital Wave user";
+}
+
+function ensureTeamRecords() {
+  if (localStorage.getItem(teamRecordsKey())) return;
+  localStorage.setItem(teamRecordsKey(), JSON.stringify(records.length ? records : cloneDefaultRecords()));
+}
+
+function upsertTeamUser(user, role = "Member", status = "Active") {
+  const email = user?.email || user?.displayName || user?.phoneNumber || "Digital Wave user";
+  const users = getTeamUsers();
+  const existing = users.find((item) => item.email === email);
+
+  if (existing) {
+    existing.role = existing.role || role;
+    existing.status = status;
+    existing.joinedAt = existing.joinedAt || new Date().toISOString();
+  } else {
+    users.push({ email, role, status, joinedAt: new Date().toISOString() });
+  }
+
+  saveTeamUsers(users);
+}
+
+function activateTeamWorkspace(message = "Team CRM loaded") {
+  ensureTeamRecords();
+  crmState.workspace = "team";
+  loadRecordsForWorkspace();
+  renderAll();
+  showToast(message);
+}
+
+function createInviteLink() {
+  ensureTeamRecords();
+  upsertTeamUser(crmState.currentUser, "Owner", "Active");
+
+  const invite = {
+    id: crypto.randomUUID ? crypto.randomUUID() : `invite-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    createdBy: currentUserIdentity(),
+    workspace: "Digital Wave Team CRM",
+  };
+
+  localStorage.setItem(inviteKey(), JSON.stringify(invite));
+
+  const inviteUrl = new URL(window.location.href);
+  inviteUrl.searchParams.set("invite", invite.id);
+  inviteUrl.searchParams.delete("demo");
+  return inviteUrl.toString();
+}
+
+function getInviteLink() {
+  const invite = JSON.parse(localStorage.getItem(inviteKey()) || "null");
+  if (!invite) return "";
+
+  const inviteUrl = new URL(window.location.href);
+  inviteUrl.searchParams.set("invite", invite.id);
+  inviteUrl.searchParams.delete("demo");
+  return inviteUrl.toString();
+}
+
+function acceptPendingInvite() {
+  if (!pendingInviteId) return false;
+
+  const invite = JSON.parse(localStorage.getItem(inviteKey()) || "null");
+  ensureTeamRecords();
+  upsertTeamUser(crmState.currentUser, "Member", "Active");
+  crmState.workspace = "team";
+  crmState.view = "dashboard";
+  loadRecordsForWorkspace();
+
+  if (invite?.id === pendingInviteId) {
+    showToast("Invitation accepted. Team CRM loaded.");
+  } else {
+    showToast("Team CRM loaded from invitation link.");
+  }
+
+  return true;
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.remove("hidden");
+  window.setTimeout(() => toast.classList.add("hidden"), 2200);
+}
+
+function applyTheme() {
+  document.body.classList.toggle("crm-dark", crmState.theme === "dark");
+  document.body.classList.toggle("crm-light", crmState.theme === "light");
+  if (themeToggle) themeToggle.textContent = crmState.theme === "dark" ? "Light mode" : "Dark mode";
+  localStorage.setItem("digitalWaveCrmTheme", crmState.theme);
+}
+
+function currentRecord() {
+  return records.find((record) => record.id === crmState.selectedId) || records[0] || defaultRecords[0];
+}
+
+function initials(name) {
+  return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function stageClass(stage) {
+  return `stage-${stage.toLowerCase().replaceAll(" ", "-")}`;
+}
+
+function moneyValue(value) {
+  return Number(String(value).replace(/[^0-9.-]/g, "")) || 0;
+}
+
+function moneyLabel(value) {
+  return `$${moneyValue(value).toLocaleString()}`;
+}
+
+function visibleRecords() {
+  const query = searchInput.value.trim().toLowerCase();
+  let data = records;
+
+  if (crmState.view === "leads") data = records.filter((record) => record.type === "lead");
+  if (crmState.view === "people") data = records.filter((record) => record.type !== "company");
+  if (crmState.view === "companies") data = records.filter((record) => record.type === "company" || record.company === record.name);
+  if (crmState.view === "deals") data = records.filter((record) => record.type === "deal");
+
+  if (crmState.activeView === "mine") data = data.filter((record) => record.owner === "Mariam");
+  if (crmState.activeView === "high") data = data.filter((record) => record.score >= 80);
+  if (crmState.activeView === "proposal") data = data.filter((record) => record.stage === "Proposal");
+  if (crmState.activeView === "recent") data = [...data].reverse();
+
+  if (query) {
+    data = data.filter((record) =>
+      [record.name, record.company, record.status, record.owner, record.next, record.email, record.source]
+      .join(" ")
+      .toLowerCase()
+      .includes(query),
+    );
+  }
+
+  return [...data].sort((a, b) => {
+    const first = String(a[crmState.sortKey] || "");
+    const second = String(b[crmState.sortKey] || "");
+    return crmState.sortDirection === "asc" ? first.localeCompare(second) : second.localeCompare(first);
+  });
+}
+
+function renderMetrics() {
+  metrics.innerHTML = "";
+}
+
+function renderTable() {
+  const config = viewConfig[crmState.view] || viewConfig.companies;
+  const columns = objectColumns[crmState.view] || objectColumns.companies;
+  const rows = visibleRecords();
+
+  moduleContent.innerHTML = `
+    <div class="twenty-object-shell">
+      <div class="twenty-listbar">
+        <div class="twenty-view-name">
+          <span class="list-icon">☷</span>
+          <strong>${config[2]}</strong>
+          <span>· ${rows.length}</span>
+          <button type="button">⌄</button>
+        </div>
+        <div class="twenty-list-actions">
+          <button data-table-action="filter" type="button">Filter</button>
+          <button data-table-action="sort" type="button">Sort</button>
+          <button data-table-action="options" type="button">Options</button>
+        </div>
+      </div>
+      <div class="twenty-table-wrap">
+        <table class="twenty-table">
+          <thead>
+            <tr>
+              <th class="select-col"><span class="empty-checkbox"></span></th>
+              ${columns.map((column) => `<th><span>${column[1]}</span>${column[2]}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((record) => `
+              <tr data-id="${record.id}">
+                <td class="select-col"><span class="empty-checkbox"></span></td>
+                ${columns.map((column) => `<td contenteditable="${column[0] === "name" ? "true" : "false"}" data-field="${column[0]}">${record[column[0]] || ""}</td>`).join("")}
+              </tr>
+            `).join("")}
+            ${rows.length ? "" : `<tr class="empty-table-row"><td colspan="${columns.length + 1}">No ${config[1].toLowerCase()} yet. Use ${config[4]} to create your first record.</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              ${columns.map((column, index) => `<td>${index === 0 ? "Calculate" : index === 1 ? `Count all <b>${rows.length}</b>` : ""}</td>`).join("")}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  `;
+
+  moduleContent.querySelectorAll("tbody tr").forEach((row) => {
+    if (row.classList.contains("empty-table-row")) return;
+    row.addEventListener("click", () => {
+      crmState.selectedId = row.dataset.id;
+      moduleContent.querySelectorAll("tbody tr").forEach((item) => item.classList.toggle("selected", item === row));
+    });
+
+    row.querySelectorAll("[contenteditable='true']").forEach((cell) => {
+      cell.addEventListener("blur", () => {
+        const record = records.find((item) => item.id === row.dataset.id);
+        if (!record) return;
+        record[cell.dataset.field] = cell.textContent.trim();
+        saveRecords();
+      });
+    });
+  });
+
+  moduleContent.querySelectorAll("[data-table-action]").forEach((button) => {
+    button.addEventListener("click", () => showToast(`${button.textContent} ready`));
+  });
+}
+
+function renderPipeline() {
+  const stages = crmState.view === "deals"
+    ? ["Proposal", "Won", "New Lead", "Contacted", "Qualified"]
+    : ["New Lead", "Contacted", "Qualified", "Proposal", "Won"];
+  moduleContent.innerHTML = `
+    <div class="pipeline">
+      ${stages.map((stage) => {
+        const stageRecords = visibleRecords().filter((record) => record.stage === stage);
+        const total = stageRecords.reduce((sum, record) => sum + moneyValue(record.value), 0);
+        return `
+          <section class="pipeline-column">
+            <h3>${stage}<span>${stageRecords.length}</span></h3>
+            <small class="pipeline-total">${moneyLabel(total)} forecast</small>
+            ${stageRecords.map((record) => `
+              <button class="deal-card" data-id="${record.id}" type="button">
+                <strong>${record.company}</strong>
+                <span>${record.name}</span>
+                <em>${record.value}</em>
+                <small><span>${record.owner}</span><span>Score ${record.score}</span></small>
+              </button>
+            `).join("") || `<div class="empty-column">No records in this stage</div>`}
+          </section>
+        `;
+      }).join("")}
+    </div>
+  `;
+
+  moduleContent.querySelectorAll(".deal-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      crmState.selectedId = card.dataset.id;
+      renderAll();
+    });
+  });
+}
+
+function renderDashboard() {
+  const openPipeline = records
+    .filter((record) => record.stage !== "Won")
+    .reduce((sum, record) => sum + moneyValue(record.value), 0);
+
+  moduleContent.innerHTML = `
+    <div class="overview-grid">
+      <section class="summary-band">
+        <h3>Sales pipeline</h3>
+        <div class="pipeline-bars">
+          <span style="--w: 86%">New lead <b>320</b></span>
+          <span style="--w: 62%">Contacted <b>210</b></span>
+          <span style="--w: 48%">Qualified <b>145</b></span>
+          <span style="--w: 32%">Proposal <b>85</b></span>
+          <span style="--w: 18%">Won <b>42</b></span>
+        </div>
+      </section>
+      <section class="summary-band">
+        <h3>Revenue overview</h3>
+        <div class="chart-lines tall">
+          <i style="height: 36%"></i><i style="height: 54%"></i><i style="height: 44%"></i><i style="height: 68%"></i>
+          <i style="height: 57%"></i><i style="height: 78%"></i><i style="height: 65%"></i><i style="height: 90%"></i>
+        </div>
+      </section>
+      <section class="summary-band">
+        <h3>Recent activity</h3>
+        ${[
+          ["Proposal deck shared", "12m"],
+          ["Apex portal scope updated", "28m"],
+          ["Delta Logistics marked won", "1h"],
+          ["Blue Nile Clinics replied", "2h"],
+          ["New website lead qualified", "3h"],
+        ].map(([item, time], index) => `
+          <div class="activity"><span class="dot ${index === 1 ? "cyan" : "blue"}"></span><p>${item}</p><time>${time}</time></div>
+        `).join("")}
+      </section>
+      <section class="summary-band">
+        <h3>Operating snapshot</h3>
+        <div class="source-list">
+          <span>Open pipeline <b>${moneyLabel(openPipeline)}</b></span>
+          <span>Avg lead score <b>81</b></span>
+          <span>Next follow-ups <b>12</b></span>
+          <span>Response SLA <b>18m</b></span>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderListModule(title, items) {
+  moduleContent.innerHTML = `
+    <div class="list-module">
+      ${items.map((item, index) => `
+        <button class="list-row" type="button" data-index="${index}">
+          <span class="avatar">${initials(item[0])}</span>
+          <strong>${item[0]}</strong>
+          <p>${item[1]}</p>
+          <em>${item[2] || ""}</em>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderTasks() {
+  moduleContent.innerHTML = `
+    <div class="task-list">
+      ${tasks.map((task, index) => `
+        <label class="task-row">
+          <input type="checkbox" ${task[3] ? "checked" : ""} data-index="${index}" />
+          <span><strong>${task[0]}</strong><em>${task[1]} - ${task[2]}</em></span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+
+  moduleContent.querySelectorAll("input[type='checkbox']").forEach((input) => {
+    input.addEventListener("change", () => {
+      tasks[Number(input.dataset.index)][3] = input.checked;
+      showToast(input.checked ? "Task completed" : "Task reopened");
+    });
+  });
+}
+
+function renderActivities() {
+  moduleContent.innerHTML = `
+    <div class="timeline">
+      ${records.slice(0, 6).map((record, index) => `
+        <article class="timeline-item">
+          <span class="avatar">${initials(record.name)}</span>
+          <div>
+            <strong>${index % 2 ? "Email sent" : "Call logged"}</strong>
+            <p>${record.next} for ${record.company}</p>
+          </div>
+          <time>${index + 1}h</time>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderWorkflows() {
+  renderTable();
+}
+
+function renderReports() {
+  moduleContent.innerHTML = `
+    <div class="reports-grid">
+      <section class="summary-band wide">
+        <h3>Revenue by month</h3>
+        <div class="chart-lines tall">
+          <i style="height: 42%"></i><i style="height: 55%"></i><i style="height: 49%"></i><i style="height: 70%"></i>
+          <i style="height: 62%"></i><i style="height: 86%"></i><i style="height: 76%"></i><i style="height: 94%"></i>
+        </div>
+      </section>
+      <section class="summary-band"><h3>Owner performance</h3><div class="source-list"><span>Mariam <b>$60.9k</b></span><span>Youssef <b>$73.2k</b></span><span>Farah <b>$21.3k</b></span></div></section>
+      <section class="summary-band"><h3>Conversion funnel</h3><div class="source-list"><span>Lead <b>100%</b></span><span>Qualified <b>46%</b></span><span>Proposal <b>27%</b></span><span>Won <b>13%</b></span></div></section>
+    </div>
+  `;
+}
+
+function renderSettings() {
+  moduleContent.innerHTML = `
+    <div class="settings-grid">
+      ${["Workspace members", "Custom fields", "Pipeline stages", "Google integration", "Phone authentication", "Email sync"].map((setting) => `
+        <article class="setting-card">
+          <h3>${setting}</h3>
+          <p>Configured for Digital Wave CRM operations.</p>
+          <label class="switch"><input type="checkbox" checked /><span></span></label>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderUsers() {
+  const teamUsers = getTeamUsers();
+  const currentUser = crmState.currentUser;
+  const inviteLink = getInviteLink();
+  moduleContent.innerHTML = `
+    <div class="users-layout">
+      <section class="summary-band wide">
+        <h3>Workspace mode</h3>
+        <p class="muted-copy">Personal gives every login a private CRM. Team CRM is the shared workspace teammates join from an invitation link.</p>
+        <div class="workspace-toggle">
+          <button class="${crmState.workspace === "personal" ? "active" : ""}" data-workspace="personal" type="button">Personal CRM</button>
+          <button class="${crmState.workspace === "team" ? "active" : ""}" data-workspace="team" type="button">Team CRM</button>
+        </div>
+      </section>
+      <section class="summary-band">
+        <h3>Current user</h3>
+        <div class="user-card">
+          <span class="avatar">${initials(currentUser?.displayName || currentUser?.email || currentUser?.phoneNumber || "User")}</span>
+          <div>
+            <strong>${currentUser?.displayName || "Digital Wave user"}</strong>
+            <p>${currentUser?.email || currentUser?.phoneNumber || "Authenticated account"}</p>
+          </div>
+          <span class="badge">Owner</span>
+        </div>
+      </section>
+      <section class="summary-band">
+        <h3>Invite by link</h3>
+        <p class="muted-copy">Create a team link for teammates. After they sign in through that link, they are added to the Team CRM workspace.</p>
+        <div class="invite-box">
+          <input id="inviteLinkInput" value="${inviteLink || "Create an invite link"}" readonly />
+          <div class="invite-actions">
+            <button class="primary-button" id="createInviteButton" type="button">${inviteLink ? "Refresh Link" : "Create Link"}</button>
+            <button class="ghost-button" id="copyInviteButton" type="button" ${inviteLink ? "" : "disabled"}>Copy</button>
+          </div>
+        </div>
+      </section>
+      <section class="summary-band">
+        <h3>Add teammate manually</h3>
+        <form class="team-form" id="teamForm">
+          <input id="teamEmailInput" type="email" placeholder="teammate@digitalwave.example" required />
+          <select id="teamRoleInput">
+            <option>Admin</option>
+            <option>Sales</option>
+            <option>Delivery</option>
+            <option>Viewer</option>
+          </select>
+          <button class="primary-button" type="submit">Add user</button>
+        </form>
+      </section>
+      <section class="summary-band wide">
+        <h3>Team users</h3>
+        <div class="team-list">
+          ${teamUsers.length ? teamUsers.map((user, index) => `
+            <div class="user-card">
+              <span class="avatar">${initials(user.email)}</span>
+              <div><strong>${user.email}</strong><p>${user.role} - ${user.status || "Active"}</p></div>
+              <button class="ghost-button" data-remove-user="${index}" type="button">Remove</button>
+            </div>
+          `).join("") : `<p class="muted-copy">No teammates added yet.</p>`}
+        </div>
+      </section>
+    </div>
+  `;
+
+  moduleContent.querySelectorAll("[data-workspace]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.workspace === "team") {
+        upsertTeamUser(crmState.currentUser, "Owner", "Active");
+        activateTeamWorkspace("Team CRM loaded");
+        return;
+      }
+
+      crmState.workspace = "personal";
+      loadRecordsForWorkspace();
+      renderAll();
+      showToast("Personal CRM loaded");
+    });
+  });
+
+  moduleContent.querySelector("#createInviteButton")?.addEventListener("click", () => {
+    const link = createInviteLink();
+    activateTeamWorkspace("Invitation link created");
+    setView("users");
+    moduleContent.querySelector("#inviteLinkInput")?.select();
+    navigator.clipboard?.writeText(link).then(() => showToast("Invite link copied")).catch(() => {});
+  });
+
+  moduleContent.querySelector("#copyInviteButton")?.addEventListener("click", () => {
+    const link = moduleContent.querySelector("#inviteLinkInput").value;
+    navigator.clipboard?.writeText(link)
+      .then(() => showToast("Invite link copied"))
+      .catch(() => showToast("Copy the invitation link from the field."));
+  });
+
+  moduleContent.querySelector("#teamForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const email = moduleContent.querySelector("#teamEmailInput").value.trim();
+    const role = moduleContent.querySelector("#teamRoleInput").value;
+    if (!email) return;
+    saveTeamUsers([...getTeamUsers(), { email, role, status: "Invited", joinedAt: "" }]);
+    ensureTeamRecords();
+    renderUsers();
+    showToast("User added to team list");
+  });
+
+  moduleContent.querySelectorAll("[data-remove-user]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const users = getTeamUsers();
+      users.splice(Number(button.dataset.removeUser), 1);
+      saveTeamUsers(users);
+      renderUsers();
+      showToast("User removed");
+    });
+  });
+}
+
+function renderModule() {
+  const recordViews = ["dashboard", "leads", "people", "companies", "deals", "tasks", "notes", "workflows", "activities", "reports", "users", "settings"];
+  if (recordViews.includes(crmState.view) && crmState.mode === "table") return renderTable();
+  if (recordViews.includes(crmState.view) && crmState.mode === "pipeline") return renderPipeline();
+  if (crmState.view === "dashboard") return renderTable();
+  if (["leads", "people", "companies", "deals"].includes(crmState.view)) return renderTable();
+  if (crmState.view === "tasks") return renderTable();
+  if (crmState.view === "activities") return renderTable();
+  if (crmState.view === "calendar") return renderListModule("Calendar", events);
+  if (crmState.view === "inbox") return renderListModule("Inbox", inbox);
+  if (crmState.view === "notes") return renderTable();
+  if (crmState.view === "workflows") return renderWorkflows();
+  if (crmState.view === "reports") return renderTable();
+  if (crmState.view === "users") return renderTable();
+  if (crmState.view === "settings") return renderTable();
+}
+
+function renderDetail() {
+  const record = currentRecord();
+  document.querySelector("#detailStage").textContent = record.status;
+  document.querySelector("#detailStage").className = `badge ${stageClass(record.status)}`;
+  document.querySelector("#detailName").textContent = record.name;
+  document.querySelector("#detailCompany").textContent = record.company;
+
+  const details = {
+    activity: `
+      <div class="deal-score"><strong>${record.value}</strong><span>Estimated project value</span></div>
+      <div class="detail-kpis">
+        <span>Owner <b>${record.owner}</b></span>
+        <span>Score <b>${record.score}/100</b></span>
+        <span>Source <b>${record.source}</b></span>
+        <span>Stage <b>${record.stage}</b></span>
+      </div>
+      <div class="contact-actions">
+        <a href="mailto:${record.email}">Email</a>
+        <a href="tel:${record.phone}">Call</a>
+      </div>
+      ${["Discovery call completed", "Proposal deck shared", record.next].map((item, index) => `
+        <div class="activity"><span class="dot ${index === 1 ? "cyan" : "blue"}"></span><p>${item}</p><time>${index + 1}h</time></div>
+      `).join("")}
+    `,
+    fields: `
+      <div class="field-list">
+        <span>Email <b>${record.email}</b></span>
+        <span>Phone <b>${record.phone}</b></span>
+        <span>Owner <b>${record.owner}</b></span>
+        <span>Source <b>${record.source}</b></span>
+        <span>Lead score <b>${record.score}</b></span>
+      </div>
+    `,
+    notes: `
+      <div class="note-card"><strong>Call summary</strong><p>${record.company} wants a fast, clean system with clear ownership and automated follow-ups.</p></div>
+      <div class="note-card"><strong>Digital Wave fit</strong><p>Good match for CRM setup, web portal, and reporting dashboard work.</p></div>
+    `,
+  };
+
+  document.querySelector("#detailBody").innerHTML = details[crmState.detailTab];
+}
+
+function syncHeader() {
+  const [kicker, title, panelTitle, subtitle, action] = viewConfig[crmState.view];
+  viewKicker.textContent = kicker;
+  pageTitle.textContent = title;
+  moduleTitle.textContent = panelTitle;
+  moduleSubtitle.textContent = subtitle;
+  newRecordButton.textContent = `＋ ${action}`;
+  document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === crmState.view));
+  document.querySelectorAll(".nav-subitem").forEach((button) => button.classList.toggle("active", button.dataset.view === crmState.view));
+  document.querySelectorAll(".quick-pill").forEach((button) => button.classList.toggle("active", button.dataset.view === crmState.view));
+  modeTabs.classList.toggle("hidden", !["dashboard", "leads", "people", "companies", "deals"].includes(crmState.view));
+}
+
+function renderAll() {
+  syncHeader();
+  renderMetrics();
+  renderModule();
+}
+
+document.querySelectorAll("[data-login]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    try {
+      const provider = button.dataset.login === "Apple" ? appleProvider : googleProvider;
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      showToast(authErrorMessage(error));
+    }
+  });
+});
+
+document.querySelectorAll("[data-auth-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const tab = button.dataset.authTab;
+    loginCard?.setAttribute("data-active-auth", tab);
+    document.querySelectorAll("[data-auth-tab]").forEach((item) => item.classList.toggle("active", item === button));
+  });
+});
+
+document.querySelector("#emailAuthForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = document.querySelector("#emailInput").value.trim();
+  const password = document.querySelector("#passwordInput").value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    showToast(authErrorMessage(error));
+  }
+});
+
+document.querySelector("#emailCreateButton").addEventListener("click", async () => {
+  const email = document.querySelector("#emailInput").value.trim();
+  const password = document.querySelector("#passwordInput").value;
+
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    showToast(authErrorMessage(error));
+  }
+});
+
+function ensureRecaptcha() {
+  if (recaptchaVerifier) return recaptchaVerifier;
+  recaptchaVerifier = new RecaptchaVerifier(auth, "recaptchaContainer", {
+    size: "normal",
+    callback: () => {},
+  });
+  return recaptchaVerifier;
+}
+
+document.querySelector("#phoneAuthForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const phoneNumber = document.querySelector("#phoneInput").value.trim();
+  if (!phoneNumber) {
+    showToast("Enter a phone number with country code.");
+    return;
+  }
+
+  try {
+    confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, ensureRecaptcha());
+    document.querySelector("#phoneCodeBox").classList.remove("hidden");
+    showToast("Verification code sent");
+  } catch (error) {
+    showToast(authErrorMessage(error));
+  }
+});
+
+document.querySelector("#verifyCodeButton").addEventListener("click", async () => {
+  const code = document.querySelector("#smsCodeInput").value.trim();
+  if (!confirmationResult || !code) {
+    showToast("Send a code first.");
+    return;
+  }
+
+  try {
+    await confirmationResult.confirm(code);
+  } catch (error) {
+    showToast(authErrorMessage(error));
+  }
+});
+
+function authErrorMessage(error) {
+  const code = error?.code || "";
+  if (code.includes("unauthorized-domain")) return "Add 127.0.0.1 and localhost to Firebase authorized domains.";
+  if (code.includes("popup-closed-by-user")) return "Sign-in popup closed.";
+  if (code.includes("operation-not-allowed")) return "Enable this provider in Firebase Authentication.";
+  if (code.includes("invalid-verification-code")) return "The SMS code is not correct.";
+  if (code.includes("invalid-phone-number")) return "Use international format, like +201001234567.";
+  if (code.includes("email-already-in-use")) return "This email already has an account.";
+  if (code.includes("weak-password")) return "Password must be at least 6 characters.";
+  if (code.includes("invalid-credential")) return "Email or password is not correct.";
+  if (code.includes("account-exists-with-different-credential")) return "This email is already linked to another provider.";
+  return "Sign-in failed. Check Firebase Authentication settings.";
+}
+
+onAuthStateChanged(auth, (user) => {
+  crmState.currentUser = user || (demoPreview ? { uid: "demo-preview", displayName: "Digital Wave Demo" } : null);
+
+  if (user || demoPreview) {
+    crmState.workspace = pendingInviteId ? "team" : "personal";
+    if (pendingInviteId) {
+      acceptPendingInvite();
+    }
+    applyTheme();
+    loadRecordsForWorkspace();
+    if (!pendingInviteId) crmState.view = "companies";
+    crmState.mode = "table";
+    if (signedInAs) {
+      signedInAs.textContent = crmState.currentUser.displayName || crmState.currentUser.email || crmState.currentUser.phoneNumber || "Signed in";
+    }
+    landingPage.classList.add("hidden");
+    crmApp.classList.remove("hidden");
+    renderAll();
+    return;
+  }
+
+  crmApp.classList.add("hidden");
+  landingPage.classList.remove("hidden");
+  document.body.classList.remove("crm-dark", "crm-light");
+});
+
+function setView(view) {
+  crmState.view = view;
+  crmState.mode = "table";
+  searchInput.value = "";
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  moduleContent.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.querySelectorAll("#modeTabs button").forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === crmState.mode));
+  renderAll();
+}
+
+document.querySelector("#logoutButton").addEventListener("click", async () => {
+  try {
+    await signOut(auth);
+  } catch {
+    showToast("Could not sign out.");
+  }
+});
+
+document.querySelectorAll("[data-focus-login]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelector(".login-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+});
+
+document.querySelectorAll(".nav-item").forEach((button) => {
+  button.addEventListener("click", () => {
+    setView(button.dataset.view === "documentation" ? "settings" : button.dataset.view);
+  });
+});
+
+document.querySelectorAll(".nav-subitem, .quick-pill").forEach((button) => {
+  button.addEventListener("click", () => {
+    setView(button.dataset.view);
+  });
+});
+
+quickNewChatButton?.addEventListener("click", () => {
+  openCreateModal(crmState.view === "deals" ? "New Deal" : "New Lead");
+});
+
+document.querySelectorAll("#modeTabs button").forEach((button) => {
+  button.addEventListener("click", () => {
+    crmState.mode = button.dataset.mode;
+    document.querySelectorAll("#modeTabs button").forEach((tab) => tab.classList.toggle("active", tab === button));
+    renderAll();
+  });
+});
+
+document.querySelectorAll(".detail-tabs button").forEach((button) => {
+  button.addEventListener("click", () => {
+    crmState.detailTab = button.dataset.detail;
+    document.querySelectorAll(".detail-tabs button").forEach((tab) => tab.classList.toggle("active", tab === button));
+    renderDetail();
+  });
+});
+
+searchInput.addEventListener("input", renderAll);
+
+document.querySelector("#densityToggle").addEventListener("click", () => {
+  document.body.classList.toggle("compact");
+});
+
+themeToggle?.addEventListener("click", () => {
+  crmState.theme = crmState.theme === "dark" ? "light" : "dark";
+  applyTheme();
+  showToast(crmState.theme === "dark" ? "Dark mode enabled" : "Light mode enabled");
+});
+
+function openCreateModal(title) {
+  modalTitle.textContent = title || newRecordButton.textContent;
+  document.querySelector("#modalName").value = "";
+  document.querySelector("#modalCompany").value = "";
+  document.querySelector("#modalValue").value = "";
+  recordModal.showModal();
+}
+
+newRecordButton.addEventListener("click", () => {
+  openCreateModal(newRecordButton.textContent);
+});
+
+document.querySelector("#saveRecordButton").addEventListener("click", () => {
+  const name = document.querySelector("#modalName").value.trim() || "New Digital Wave Lead";
+  const company = document.querySelector("#modalCompany").value.trim() || "New Account";
+  const value = document.querySelector("#modalValue").value.trim() || "$12,000";
+  const newRecord = {
+    id: `new-${Date.now()}`,
+    type: crmState.view === "companies" ? "company" : crmState.view === "deals" ? "deal" : crmState.view,
+    name,
+    company,
+    domain: company ? `${company.toLowerCase().replaceAll(" ", "")}.com` : "",
+    createdBy: "System",
+    createdAt: "Just now",
+    employees: "",
+    linkedin: "",
+    amount: value,
+    role: "",
+    status: "New Lead",
+    stage: "New Lead",
+    value,
+    owner: "Mariam",
+    email: "hello@example.com",
+    phone: "+20 100 000 0000",
+    next: "Qualify new opportunity",
+    source: "Manual",
+    score: 50,
+  };
+  records.unshift(newRecord);
+  crmState.selectedId = newRecord.id;
+  saveRecords();
+  recordModal.close();
+  renderAll();
+  showToast("Record created");
+});
+
+function importDemoRecords() {
+  const imported = [
+    ["Website rebuild", "Cairo Labs", "$19,700", "Google Ads"],
+    ["Client portal", "Mena Properties", "$28,300", "CSV import"],
+    ["Support CRM", "WaveCare", "$16,900", "CSV import"],
+  ];
+  imported.forEach(([name, company, value, source], index) => {
+    records.unshift({
+      id: `import-${Date.now()}-${index}`,
+      type: index === 1 ? "deal" : "lead",
+      name,
+      company,
+      status: "New Lead",
+      stage: "New Lead",
+      value,
+      owner: "Mariam",
+      email: `${company.toLowerCase().replaceAll(" ", ".")}@example.com`,
+      phone: "+20 100 000 0000",
+      next: "Review imported opportunity",
+      source,
+      score: 68 + index * 7,
+    });
+  });
+  saveRecords();
+  renderAll();
+  showToast("Imported 3 records");
+}
+
+document.querySelector("#importButton").addEventListener("click", importDemoRecords);
+
+function renderCommands() {
+  const query = commandInput.value.trim().toLowerCase();
+  const visibleCommands = commands.filter(([title, subtitle]) => `${title} ${subtitle}`.toLowerCase().includes(query));
+  commandResults.innerHTML = visibleCommands.map(([title, subtitle], index) => `
+    <button class="command-row" data-command-index="${commands.findIndex((command) => command[0] === title)}" type="button">
+      <strong>${title}</strong>
+      <span>${subtitle}</span>
+      <kbd>${index + 1}</kbd>
+    </button>
+  `).join("");
+
+  commandResults.querySelectorAll(".command-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      const command = commands[Number(row.dataset.commandIndex)];
+      commandModal.close();
+      command[2]();
+      showToast(command[0]);
+    });
+  });
+}
+
+document.querySelector("#commandButton").addEventListener("click", () => {
+  commandModal.showModal();
+  commandInput.value = "";
+  renderCommands();
+  commandInput.focus();
+});
+
+commandInput.addEventListener("input", renderCommands);
+
+window.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    commandModal.showModal();
+    commandInput.value = "";
+    renderCommands();
+    commandInput.focus();
+  }
+});
+
+renderAll();
